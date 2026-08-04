@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAM PNG Test</title>
+  <script src="https://unpkg.com/@rive-app/canvas@2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #fff;
+      color: #333;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== Screen 1: Setup ===== */
+    #setup-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 24px;
+    }
+    .setup-label {
+      font-size: 14px;
+      color: #999;
+    }
+    .setup-label-motion {
+      font-size: 15px;
+      color: #666;
+    }
+    .upload-area {
+      width: 280px;
+      height: 280px;
+      border: 2px dashed #ccc;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-area:hover { border-color: #999; background: #fafafa; }
+    .upload-area.has-image { border-style: solid; border-color: #ddd; }
+    .upload-area img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      position: absolute;
+    }
+    .upload-icon {
+      font-size: 48px;
+      color: #ccc;
+      margin-bottom: 8px;
+    }
+    .upload-text { color: #999; font-size: 14px; }
+    .upload-area.has-image .upload-icon,
+    .upload-area.has-image .upload-text { display: none; }
+
+    .motion-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    .motion-btn {
+      padding: 10px 20px;
+      border: 2px solid #ddd;
+      border-radius: 24px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .motion-btn:hover { border-color: #999; }
+    .motion-btn.selected {
+      border-color: #333;
+      background: #333;
+      color: #fff;
+    }
+
+    .ok-btn {
+      padding: 12px 48px;
+      border: none;
+      border-radius: 24px;
+      background: #333;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .ok-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .ok-btn:not(:disabled):hover { opacity: 0.8; }
+
+    /* ===== Screen 2: Main ===== */
+    #main-screen {
+      display: none;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .canvas-area.pressing { cursor: grabbing; }
+    #rive-canvas {
+      max-width: 100%;
+      max-height: 100%;
+      transition: transform 0.05s linear;
+    }
+
+    .bottom-bar {
+      padding: 16px 24px 24px;
+      border-top: 1px solid #eee;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+    .image-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      border: 2px solid #ddd;
+      object-fit: contain;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      background: #fafafa;
+    }
+    .thumb.active { border-color: #333; }
+    .thumb:hover { border-color: #999; }
+    .add-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      border: 2px dashed #ccc;
+      background: #fff;
+      cursor: pointer;
+      font-size: 24px;
+      color: #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .add-btn:hover { border-color: #999; color: #999; }
+
+    .motion-row {
+      display: flex;
+      gap: 12px;
+    }
+    .motion-select-btn {
+      padding: 8px 18px;
+      border: 2px solid #ddd;
+      border-radius: 20px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      user-select: none;
+      transition: all 0.15s;
+    }
+    .motion-select-btn:hover { border-color: #999; }
+    .motion-select-btn.selected {
+      border-color: #333;
+      background: #333;
+      color: #fff;
+    }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Screen 1: Setup -->
+  <div id="setup-screen">
+    <div class="setup-label">正方形の透過画像を入れてね</div>
+
+    <div class="upload-area" id="upload-area">
+      <div class="upload-icon">+</div>
+      <div class="upload-text">画像をアップロード</div>
+      <img id="preview-img" alt="">
+    </div>
+
+    <div class="setup-label-motion">この子の移動方法は...</div>
+
+    <div class="motion-buttons" id="setup-motion-buttons">
+      <button class="motion-btn selected" data-motion="walking">歩く</button>
+      <button class="motion-btn" data-motion="jumping">跳ねる</button>
+      <button class="motion-btn" data-motion="flying">浮く</button>
+      <button class="motion-btn" data-motion="planted">移動しない</button>
+    </div>
+
+    <button class="ok-btn" id="ok-btn" disabled>OK</button>
+    <input type="file" id="file-input-setup" accept="image/png">
+  </div>
+
+  <!-- Screen 2: Main -->
+  <div id="main-screen">
+    <div class="canvas-area" id="canvas-area">
+      <canvas id="rive-canvas"></canvas>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="image-row" id="image-row">
+        <button class="add-btn" id="add-btn">+</button>
+      </div>
+      <div class="motion-row" id="main-motion-buttons">
+        <button class="motion-select-btn" data-motion="walking">歩く</button>
+        <button class="motion-select-btn" data-motion="jumping">跳ねる</button>
+        <button class="motion-select-btn" data-motion="flying">浮く</button>
+        <button class="motion-select-btn" data-motion="planted">移動しない</button>
+      </div>
+    </div>
+    <input type="file" id="file-input-main" accept="image/png">
+  </div>
+
+  <script>
+    const MOTIONS = ['walking', 'jumping', 'flying', 'planted'];
+    const LERP_SPEED = 0.008;
+
+    let selectedMotion = 'walking';
+    let uploadedImages = [];
+    let activeImageIndex = -1;
+    let riveInstance = null;
+    let imageAsset = null;
+    let boolInputs = {};
+
+    // Canvas movement state
+    let canvasOffsetX = 0;
+    let canvasOffsetY = 0;
+    let targetX = 0;
+    let targetY = 0;
+    let isCanvasPressed = false;
+    let moveAnimId = null;
+
+    // ===== Screen 1 Logic =====
+    const setupScreen = document.getElementById('setup-screen');
+    const mainScreen = document.getElementById('main-screen');
+    const uploadArea = document.getElementById('upload-area');
+    const previewImg = document.getElementById('preview-img');
+    const fileInputSetup = document.getElementById('file-input-setup');
+    const fileInputMain = document.getElementById('file-input-main');
+    const okBtn = document.getElementById('ok-btn');
+    const imageRow = document.getElementById('image-row');
+    const addBtn = document.getElementById('add-btn');
+    const canvasArea = document.getElementById('canvas-area');
+
+    uploadArea.addEventListener('click', () => fileInputSetup.click());
+
+    fileInputSetup.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        previewImg.src = ev.target.result;
+        uploadArea.classList.add('has-image');
+        uploadedImages = [{ file, dataUrl: ev.target.result }];
+        activeImageIndex = 0;
+        okBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+
+    document.getElementById('setup-motion-buttons').addEventListener('click', (e) => {
+      const btn = e.target.closest('.motion-btn');
+      if (!btn) return;
+      document.querySelectorAll('#setup-motion-buttons .motion-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedMotion = btn.dataset.motion;
+    });
+
+    okBtn.addEventListener('click', () => {
+      if (uploadedImages.length === 0) return;
+      setupScreen.style.display = 'none';
+      mainScreen.style.display = 'flex';
+      // Highlight the selected motion button on Screen 2
+      document.querySelectorAll('#main-motion-buttons .motion-select-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.motion === selectedMotion);
+      });
+      requestAnimationFrame(() => initRive());
+    });
+
+    // ===== Screen 2 Logic =====
+
+    function initRive() {
+      const canvas = document.getElementById('rive-canvas');
+      const size = Math.min(canvasArea.clientWidth, canvasArea.clientHeight) || 500;
+      canvas.width = size;
+      canvas.height = size;
+
+      riveInstance = new rive.Rive({
+        src: 'fam_png_test.riv?t=' + Date.now(),
+        canvas: canvas,
+        stateMachines: 'State Machine 1',
+        autoplay: true,
+        useOffscreenRenderer: false,
+        assetLoader: (asset, bytes) => {
+          if (asset.isImage) {
+            imageAsset = asset;
+            return true;
+          }
+          return false;
+        },
+        onLoad: () => {
+          setTimeout(async () => {
+            const inputs = riveInstance.stateMachineInputs('State Machine 1');
+            if (inputs) {
+              inputs.forEach((input) => {
+                if (MOTIONS.includes(input.name)) {
+                  boolInputs[input.name] = input;
+                }
+              });
+            }
+            await loadImageToAsset(uploadedImages[activeImageIndex].dataUrl);
+            renderThumbnails();
+          }, 100);
+        }
+      });
+    }
+
+    function dataUrlToBytes(dataUrl) {
+      const base64 = dataUrl.split(',')[1];
+      const bin = atob(base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    async function loadImageToAsset(dataUrl) {
+      if (!imageAsset) return;
+      try {
+        const bytes = dataUrlToBytes(dataUrl);
+        const img = await rive.decodeImage(bytes);
+        imageAsset.setRenderImage(img);
+        if (riveInstance) {
+          riveInstance.resizeDrawingSurfaceToCanvas();
+          riveInstance.startRendering();
+        }
+      } catch (e) {
+        console.error('Image load/decode failed:', e);
+      }
+    }
+
+    function renderThumbnails() {
+      imageRow.querySelectorAll('.thumb').forEach(t => t.remove());
+
+      uploadedImages.forEach((imgData, idx) => {
+        const img = document.createElement('img');
+        img.className = 'thumb' + (idx === activeImageIndex ? ' active' : '');
+        img.src = imgData.dataUrl;
+        img.addEventListener('click', () => {
+          activeImageIndex = idx;
+          loadImageToAsset(imgData.dataUrl);
+          renderThumbnails();
+        });
+        imageRow.insertBefore(img, addBtn);
+      });
+    }
+
+    addBtn.addEventListener('click', () => fileInputMain.click());
+
+    fileInputMain.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        uploadedImages.push({ file, dataUrl: ev.target.result });
+        activeImageIndex = uploadedImages.length - 1;
+        loadImageToAsset(ev.target.result);
+        renderThumbnails();
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+
+    // ===== Motion select buttons (click to select) =====
+    document.getElementById('main-motion-buttons').addEventListener('click', (e) => {
+      const btn = e.target.closest('.motion-select-btn');
+      if (!btn) return;
+      const newMotion = btn.dataset.motion;
+
+      // Deactivate previous motion if canvas is currently pressed
+      if (isCanvasPressed && boolInputs[selectedMotion]) {
+        boolInputs[selectedMotion].value = false;
+      }
+
+      // Update selection
+      document.querySelectorAll('#main-motion-buttons .motion-select-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedMotion = newMotion;
+
+      // If planted is selected, reset position
+      if (selectedMotion === 'planted') {
+        resetCanvasPosition();
+      }
+
+      // If canvas is currently pressed, activate new motion
+      if (isCanvasPressed && boolInputs[selectedMotion]) {
+        boolInputs[selectedMotion].value = true;
+      }
+    });
+
+    // ===== Canvas press to activate motion + follow cursor =====
+    canvasArea.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.bottom-bar')) return;
+      isCanvasPressed = true;
+      canvasArea.classList.add('pressing');
+
+      // Activate selected motion's bool
+      if (boolInputs[selectedMotion]) {
+        boolInputs[selectedMotion].value = true;
+      }
+
+      // Start cursor follow (unless planted)
+      if (selectedMotion !== 'planted') {
+        updateTarget(e);
+        startFollowing();
+      }
+    });
+
+    canvasArea.addEventListener('mousemove', (e) => {
+      if (!isCanvasPressed || selectedMotion === 'planted') return;
+      updateTarget(e);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isCanvasPressed) return;
+      isCanvasPressed = false;
+      canvasArea.classList.remove('pressing');
+
+      // Deactivate motion bool
+      if (boolInputs[selectedMotion]) {
+        boolInputs[selectedMotion].value = false;
+      }
+
+      // Stop following
+      stopFollowing();
+    });
+
+    function updateTarget(e) {
+      const rect = canvasArea.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      targetX = e.clientX - centerX;
+      targetY = e.clientY - centerY;
+    }
+
+    function startFollowing() {
+      if (moveAnimId) return;
+      function animate() {
+        canvasOffsetX += (targetX - canvasOffsetX) * LERP_SPEED;
+        canvasOffsetY += (targetY - canvasOffsetY) * LERP_SPEED;
+        applyCanvasTransform();
+        moveAnimId = requestAnimationFrame(animate);
+      }
+      moveAnimId = requestAnimationFrame(animate);
+    }
+
+    function stopFollowing() {
+      if (moveAnimId) {
+        cancelAnimationFrame(moveAnimId);
+        moveAnimId = null;
+      }
+    }
+
+    function resetCanvasPosition() {
+      stopFollowing();
+      canvasOffsetX = 0;
+      canvasOffsetY = 0;
+      targetX = 0;
+      targetY = 0;
+      applyCanvasTransform();
+    }
+
+    function applyCanvasTransform() {
+      const canvas = document.getElementById('rive-canvas');
+      if (canvas) {
+        canvas.style.transform = `translate(${canvasOffsetX}px, ${canvasOffsetY}px)`;
+      }
+    }
+  </script>
+</body>
+</html>
