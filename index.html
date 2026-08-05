@@ -183,6 +183,33 @@
       color: #fff;
     }
 
+    .sample-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .sample-label {
+      font-size: 13px;
+      color: #bbb;
+    }
+    .sample-row {
+      display: flex;
+      gap: 12px;
+    }
+    .sample-thumb {
+      width: 64px;
+      height: 64px;
+      border-radius: 10px;
+      border: 2px solid #ddd;
+      object-fit: contain;
+      cursor: pointer;
+      background: #fafafa;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .sample-thumb:hover { border-color: #999; transform: scale(1.05); }
+    .sample-thumb.selected { border-color: #333; }
+
     input[type="file"] { display: none; }
   </style>
 </head>
@@ -192,6 +219,15 @@
   <div id="setup-screen">
     <div class="setup-label">正方形の透過画像を入れてね</div>
 
+    <div class="sample-section">
+      <div class="sample-label">サンプルから選ぶ</div>
+      <div class="sample-row">
+        <img class="sample-thumb" src="hiro.png" data-name="hiro" alt="hiro">
+        <img class="sample-thumb" src="hana.png" data-name="hana" alt="花">
+      </div>
+    </div>
+
+    <div class="sample-label">または自分でアップロード</div>
     <div class="upload-area" id="upload-area">
       <div class="upload-icon">+</div>
       <div class="upload-text">画像をアップロード</div>
@@ -264,9 +300,28 @@
 
     uploadArea.addEventListener('click', () => fileInputSetup.click());
 
+    document.querySelectorAll('.sample-thumb').forEach(thumb => {
+      thumb.addEventListener('click', async () => {
+        document.querySelectorAll('.sample-thumb').forEach(t => t.classList.remove('selected'));
+        thumb.classList.add('selected');
+        const res = await fetch(thumb.src);
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          previewImg.src = ev.target.result;
+          uploadArea.classList.add('has-image');
+          uploadedImages = [{ file: null, dataUrl: ev.target.result }];
+          activeImageIndex = 0;
+          okBtn.disabled = false;
+        };
+        reader.readAsDataURL(blob);
+      });
+    });
+
     fileInputSetup.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      document.querySelectorAll('.sample-thumb').forEach(t => t.classList.remove('selected'));
       const reader = new FileReader();
       reader.onload = (ev) => {
         previewImg.src = ev.target.result;
