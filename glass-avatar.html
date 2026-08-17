@@ -54,7 +54,6 @@
       width: 100%; height: 100%;
       border-radius: 50%;
     }
-    .avatar-container .tint-canvas { pointer-events: none; }
 
     .avatar-name {
       font-size: 11px;
@@ -211,13 +210,8 @@
       riveCanvas.className = 'rive-canvas';
       riveCanvas.width = SIZE; riveCanvas.height = SIZE;
 
-      const tintCanvas = document.createElement('canvas');
-      tintCanvas.className = 'tint-canvas';
-      tintCanvas.width = SIZE; tintCanvas.height = SIZE;
-
       container.appendChild(glassCanvas);
       container.appendChild(riveCanvas);
-      container.appendChild(tintCanvas);
 
       const nameLabel = document.createElement('div');
       nameLabel.className = 'avatar-name';
@@ -295,14 +289,11 @@
         glassCanvas,
         glassCtx: glassCanvas.getContext('2d', { willReadFrequently: true }),
         riveCanvas,
-        tintCanvas,
-        tintCtx: tintCanvas.getContext('2d'),
         moyaCanvas: Object.assign(document.createElement('canvas'), { width: SIZE, height: SIZE }),
         sourceImage: null,
         riveInstance: null,
         emotionInput: null,
-        tintAnimId: null,
-        eyeColor: '#ffffff',
+        eyeColorInput: null,
         imgBlur: 6,
         imgScale: 110,
         imgOffsetX: 0,
@@ -318,14 +309,14 @@
       xSlider.addEventListener('input', () => { instance.imgOffsetX = +xSlider.value; });
       ySlider.addEventListener('input', () => { instance.imgOffsetY = +ySlider.value; });
 
-      // Eye color events
+      // Eye color events — set via Rive ViewModel Data Binding
       whiteDot.addEventListener('click', () => {
         whiteDot.classList.add('active');
-        applyEyeColor(instance, '#ffffff');
+        setEyeColor(instance, '#ffffff');
       });
       picker.addEventListener('input', () => {
         whiteDot.classList.remove('active');
-        applyEyeColor(instance, picker.value);
+        setEyeColor(instance, picker.value);
       });
 
       // Jiggle
@@ -348,30 +339,16 @@
       return { wrapper, instance };
     }
 
-    function applyEyeColor(inst, hex) {
-      inst.eyeColor = hex;
-      if (inst.tintAnimId) { cancelAnimationFrame(inst.tintAnimId); inst.tintAnimId = null; }
+    function hexToRiveColor(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return (0xFF << 24 | r << 16 | g << 8 | b) | 0;
+    }
 
-      if (hex === '#ffffff') {
-        inst.tintCtx.clearRect(0, 0, SIZE, SIZE);
-        inst.riveCanvas.style.opacity = '1';
-        inst.tintCanvas.style.opacity = '0';
-        return;
-      }
-
-      inst.riveCanvas.style.opacity = '0';
-      inst.tintCanvas.style.opacity = '1';
-
-      function tintLoop() {
-        inst.tintCtx.clearRect(0, 0, SIZE, SIZE);
-        inst.tintCtx.globalCompositeOperation = 'source-over';
-        inst.tintCtx.drawImage(inst.riveCanvas, 0, 0);
-        inst.tintCtx.globalCompositeOperation = 'source-in';
-        inst.tintCtx.fillStyle = hex;
-        inst.tintCtx.fillRect(0, 0, SIZE, SIZE);
-        inst.tintAnimId = requestAnimationFrame(tintLoop);
-      }
-      tintLoop();
+    function setEyeColor(inst, hex) {
+      if (!inst.eyeColorInput) return;
+      inst.eyeColorInput.value = hexToRiveColor(hex);
     }
 
     function renderMoyaLayer(inst, time) {
@@ -534,8 +511,10 @@
             try {
               const vmi = inst.riveInstance.viewModelInstance;
               if (vmi) {
-                inst.emotionInput = vmi.number('numberProperty');
+                inst.emotionInput = vmi.number('emotion');
                 if (inst.emotionInput) inst.emotionInput.value = 0;
+                inst.eyeColorInput = vmi.color('eyeColor');
+                if (inst.eyeColorInput) inst.eyeColorInput.value = hexToRiveColor('#ffffff');
               }
             } catch(e) {}
           }, 300);
